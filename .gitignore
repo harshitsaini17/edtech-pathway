@@ -42,3 +42,4 @@ htmlcov/
 # Test results
 test-results/
 output
+debug
