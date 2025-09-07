@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  pathway-dev:
+    build: .
+    container_name: pathway-server
+    volumes:
+      # Mount your code for live editing
+      - .:/app
+      # Optional: Mount a volume for data persistence
+      - pathway-data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    # Keep container running for development
+    command: tail -f /dev/null
+    # or use: command: python -c "import time; time.sleep(999999999)"
+
+volumes:
+  pathway-data:
