@@ -92,7 +92,7 @@ class AdvancedAzureLLM:
         }
         
         # Current model client
-        self.current_model = "gpt-4.1"
+        self.current_model = "gpt-5"
         self.client = self._create_client(self.current_model)
     
     def _create_client(
