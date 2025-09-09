@@ -215,6 +215,7 @@ REQUIREMENTS:
 4. Emphasize relevant elements (e.g., more math for statistics, more applications for engineering)
 5. Include subject-specific pitfall categories
 6. Maintain the 🚫 pitfall format exactly
+7. If there is not sufficient mathematical content from the pdf generate by your self but main objective is to complete the theory generation.
 
 CUSTOMIZATION GUIDELINES:
 - For mathematics/statistics: Focus on proofs, derivations, mathematical rigor
