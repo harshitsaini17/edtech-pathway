@@ -32,7 +32,7 @@ from dataclasses import dataclass
 # Import our working components
 from LLM import AdvancedAzureLLM
 from optimized_universal_extractor import OptimizedUniversalExtractor
-from llm_enhanced_curriculum_generator import LLMEnhancedCurriculumGenerator
+from llm_enhanced_curriculum_generator import EnhancedLLMCurriculumGenerator
 
 class CompletePathwayGenerator:
     """
@@ -97,8 +97,19 @@ class CompletePathwayGenerator:
                 'extraction_date': datetime.now().isoformat()
             }
             
+            # Save topics data to file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            topics_file = f"output/topics_{timestamp}.json"
+            
+            # Ensure output directory exists
+            os.makedirs("output", exist_ok=True)
+            
+            with open(topics_file, 'w', encoding='utf-8') as f:
+                json.dump(self.topics_data, f, indent=2, ensure_ascii=False)
+            
             topic_count = len(topics_data)
             print(f"✅ Extracted {topic_count} high-quality topics")
+            print(f"📁 Topics saved: {topics_file}")
             
             # Show sample topics
             print("\n📋 Sample topics:")
@@ -121,45 +132,13 @@ class CompletePathwayGenerator:
         print("-" * 50)
         
         try:
-            self.curriculum_generator = LLMEnhancedCurriculumGenerator()
+            self.curriculum_generator = EnhancedLLMCurriculumGenerator()
             
-            # Set the topics data directly
-            if self.topics_data:
-                self.curriculum_generator.topics = self.topics_data['topics']
-            else:
-                print("❌ No topics data available")
-                return False
-                
             print(f"🎯 Learning Goal: {learning_query}")
             print("🧠 AI analyzing and creating curriculum...")
             
-            # Step 1: Enhanced query analysis
-            query_data = self.curriculum_generator.refine_query_with_llm(learning_query)
-            
-            print(f"📝 Original Query: '{learning_query}'")
-            print(f"🎯 Enhanced: '{query_data.get('refined_title', learning_query)}'")
-            print(f"👥 Target: {query_data.get('target_audience', 'General')}")
-            print(f"📊 Level: {query_data.get('difficulty_level', 'Intermediate')}")
-            
-            # Step 2: Extract relevant topics
-            print("🔍 Analyzing topics for relevance...")
-            all_relevant_topics = []
-            
-            # Process in chunks
-            chunk_size = 40
-            topics = self.curriculum_generator.topics
-            
-            for i in range(0, len(topics), chunk_size):
-                chunk = topics[i:i + chunk_size]
-                relevant_topics = self.curriculum_generator.extract_relevant_topics_with_llm(chunk, query_data)
-                if relevant_topics:
-                    all_relevant_topics.extend(relevant_topics)
-                    
-            print(f"🎯 AI selected {len(all_relevant_topics)} relevant topics")
-            
-            # Step 3: Create curriculum
-            print("🏗️ AI creating curriculum structure...")
-            curriculum = self.curriculum_generator.create_curriculum_with_llm(all_relevant_topics, query_data)
+            # The new enhanced generator handles everything in one method
+            curriculum = self.curriculum_generator.generate_curriculum(learning_query)
             
             if not curriculum:
                 print("❌ Curriculum creation failed")
@@ -169,14 +148,15 @@ class CompletePathwayGenerator:
             
             print(f"✅ Created: {curriculum.get('title', 'Untitled Curriculum')}")
             print(f"📊 Modules: {len(curriculum.get('modules', []))}")
-            print(f"📄 Total Topics: {sum(len(module.get('topics', [])) for module in curriculum.get('modules', []))}")
+            print(f"📄 Total Topics: {curriculum.get('total_topics', sum(len(module.get('topics', [])) for module in curriculum.get('modules', [])))}")
             
             # Show module breakdown
             print("\n📚 Module Overview:")
             for i, module in enumerate(curriculum.get('modules', []), 1):
                 topics_count = len(module.get('topics', []))
+                duration = module.get('estimated_duration', 'Unknown')
                 print(f"   {i}. {module.get('title', f'Module {i}')}")
-                print(f"      📄 Topics: {topics_count}")
+                print(f"      📄 Topics: {topics_count} | ⏱️ Duration: {duration}")
                 
             return True
             
@@ -194,26 +174,36 @@ class CompletePathwayGenerator:
             return False
             
         try:
-            # Create curriculum file in expected format
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            curriculum_file = f"output/curriculum_{timestamp}.json"
+            # The enhanced curriculum generator already saved the file with enhanced_ prefix
+            # We just need to confirm it exists and provide guidance
             
-            with open(curriculum_file, 'w', encoding='utf-8') as f:
-                json.dump(self.curriculum_data, f, indent=2, ensure_ascii=False)
-                
-            print(f"📁 Curriculum saved: {curriculum_file}")
+            # Ensure output directory exists
+            os.makedirs("output", exist_ok=True)
+            
+            print("📁 Enhanced curriculum already saved from Step 2")
+            print("📁 Topics data already saved from Step 1")
             
             # Let user know they can now use the flexible generator
             print("💡 You can now use the flexible theory generator with:")
             print(f"   python flexible_module_theory_generator.py")
             
-            # Show available modules
+            # Show available modules with enhanced details
             modules = self.curriculum_data.get('modules', [])
-            print(f"📚 Available Modules ({len(modules)}):")
+            total_duration = self.curriculum_data.get('estimated_total_duration', 'Unknown')
+            quality_metrics = self.curriculum_data.get('quality_metrics', {})
+            
+            print(f"📚 Available Modules ({len(modules)}) | ⏱️ Total Duration: {total_duration}:")
             for i, module in enumerate(modules, 1):
                 topics_count = len(module.get('topics', []))
+                duration = module.get('estimated_duration', 'Unknown')
                 print(f"   {i}. {module.get('title', f'Module {i}')}")
-                print(f"      📄 Topics: {topics_count}")
+                print(f"      📄 Topics: {topics_count} | ⏱️ Duration: {duration}")
+                
+            # Show quality metrics if available
+            if quality_metrics:
+                print(f"\n📈 Quality Metrics:")
+                for metric, score in quality_metrics.items():
+                    print(f"   {metric}: {score:.1f}/10")
                 
             print("\n✅ SETUP COMPLETE!")
             print("🚀 Next step: Run the flexible theory generator")
@@ -294,10 +284,12 @@ class CompletePathwayGenerator:
             
         print("\n🎉 WORKFLOW READY!")
         print("=" * 50)
-        print("✅ PDF topics extracted")
-        print("✅ AI curriculum created") 
+        print("✅ PDF topics extracted and saved")
+        print("✅ Enhanced AI curriculum created and saved") 
         print("✅ Ready for theory generation")
         print("📁 All data saved to output/ folder")
+        print("   • topics_YYYYMMDD_HHMMSS.json")
+        print("   • enhanced_curriculum_YYYYMMDD_HHMMSS.json")
         print("\n🚀 Next: Run theory generation")
         print("   python flexible_module_theory_generator.py")
         
