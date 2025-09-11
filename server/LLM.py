@@ -60,25 +60,25 @@ class AdvancedAzureLLM:
             "gpt-4.1": ModelConfig(
                 name="gpt-4.1",
                 deployment_name=os.getenv("AZURE_OPENAI_API_DEPLOYMENT_NAME_GPT_4_1", "gpt-4.1"),
-                max_tokens=4000,
+                max_tokens=14000,
                 temperature=1.0
             ),
             "gpt-5": ModelConfig(
                 name="gpt-5", 
                 deployment_name=os.getenv("AZURE_OPENAI_API_DEPLOYMENT_NAME_GPT_5", "gpt-5"),
-                max_tokens=8000,
+                max_tokens=18000,
                 temperature=1.0
             ),
             "gpt-4.1-mini": ModelConfig(
                 name="gpt-4.1-mini",
                 deployment_name=os.getenv("AZURE_OPENAI_API_DEPLOYMENT_NAME_GPT_4_1_MINI", "gpt-4.1-mini"),
-                max_tokens=2000,
+                max_tokens=12000,
                 temperature=1.0
             ),
             "gpt-5-mini": ModelConfig(
                 name="gpt-5-mini",
                 deployment_name=os.getenv("AZURE_OPENAI_API_DEPLOYMENT_NAME_GPT_5_MINI", "gpt-5-mini"),
-                max_tokens=4000,
+                max_tokens=14000,
                 temperature=1.0
             )
         }
