@@ -48,6 +48,14 @@ except ImportError:
     print("ℹ️  LLM.py not found - running without AI enhancement")
     LLM_AVAILABLE = False
 
+# Vector Store integration
+try:
+    from db.vector_store import get_vector_store
+    VECTOR_STORE_AVAILABLE = True
+except ImportError:
+    print("ℹ️  Vector store not available - running without vector storage")
+    VECTOR_STORE_AVAILABLE = False
+
 @dataclass
 class TopicChunk:
     """Represents a chunk of text within a topic"""
@@ -673,11 +681,72 @@ class TopicBoundaryDetector:
         # Step 10: Export results
         self.export_boundaries(final_boundaries, chunks)
         
-        # Step 11: Print summary
+        # Step 11: Save to vector store (if available)
+        if VECTOR_STORE_AVAILABLE:
+            self.save_to_vector_store(final_boundaries, chunks)
+        
+        # Step 12: Print summary
         self.print_boundary_summary(final_boundaries)
         
         print("\n✅ TOPIC BOUNDARY DETECTION COMPLETE!")
         return final_boundaries
+    
+    def save_to_vector_store(self, boundaries: List[TopicBoundary], chunks: List[TopicChunk]):
+        """
+        Save detected topics and their content to the vector store for RAG
+        
+        Args:
+            boundaries: Detected topic boundaries
+            chunks: All text chunks
+        """
+        try:
+            vector_store = get_vector_store()
+            
+            print("\n💾 Saving topics to vector store...")
+            
+            # Prepare topics for vector store
+            topics_to_save = []
+            
+            for boundary in boundaries:
+                # Get content from chunks in this boundary
+                boundary_chunks = [
+                    chunk for chunk in chunks
+                    if boundary.start_chunk_id <= chunk.chunk_id <= boundary.end_chunk_id
+                ]
+                
+                # Combine chunk content
+                full_content = "\n\n".join([
+                    chunk.clean_text for chunk in boundary_chunks[:5]  # First 5 chunks
+                ])
+                
+                topic_data = {
+                    'topic': boundary.topic_title,
+                    'page': boundary.start_page,
+                    'content': full_content,
+                    'source': 'boundary_detection',
+                    'confidence': boundary.confidence,
+                    'boundary_type': boundary.boundary_type,
+                    'start_page': boundary.start_page,
+                    'end_page': boundary.end_page,
+                    'num_chunks': len(boundary_chunks)
+                }
+                
+                topics_to_save.append(topic_data)
+            
+            # Add to vector store
+            source_doc = os.path.basename(self.pdf_path)
+            added_count = vector_store.add_topics(topics_to_save, source_document=source_doc)
+            
+            print(f"✅ Saved {added_count} topics to vector store")
+            
+            # Print stats
+            stats = vector_store.get_collection_stats()
+            print(f"📊 Total topics in vector store: {stats['topics_count']}")
+            
+        except Exception as e:
+            print(f"⚠️  Error saving to vector store: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 def main():
