@@ -18,9 +18,24 @@ python llm_enhanced_curriculum_generator.py
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from typing import List, Dict, Any, Set, Tuple
 from LLM import AdvancedAzureLLM
+
+# Add utils to path
+import sys
+import os
+# Add parent directory to path for utils imports
+parent_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, parent_dir)
+
+try:
+    from utils.topic_beautifier import TopicTitleBeautifier, beautify_curriculum_topics
+except ImportError:
+    print("⚠️ Warning: Could not import TopicTitleBeautifier")
+    TopicTitleBeautifier = None
+    beautify_curriculum_topics = lambda x: x  # Fallback no-op function
 
 class EnhancedLLMCurriculumGenerator:
     def __init__(self):
@@ -33,6 +48,17 @@ class EnhancedLLMCurriculumGenerator:
             
         self.topics = []
         self.textbook_structure = {}
+        
+        # Initialize topic beautifier
+        if TopicTitleBeautifier:
+            try:
+                self.beautifier = TopicTitleBeautifier()
+                print("✅ Topic beautifier initialized")
+            except Exception as e:
+                print(f"⚠️ Topic beautifier not available: {e}")
+                self.beautifier = None
+        else:
+            self.beautifier = None
         
         # Enhanced learning domain mapping with specificity scores
         self.learning_domains = {
@@ -272,8 +298,31 @@ AVOID general statistics introductions unless specifically needed.
                     
             except Exception as e:
                 print(f"⚠️ LLM filtering failed for chunk, using fallback: {e}")
-                fallback_topics = self._fallback_topic_filtering_chunk(chunk, query_analysis)
-                all_relevant_topics.extend(fallback_topics)
+                # Apply simple keyword-based filtering to this chunk
+                primary_domain = query_analysis.get('primary_domain', 'general')
+                query_title = query_analysis.get('refined_title', '').lower()
+                key_concepts = query_analysis.get('key_concepts', [])
+                
+                for topic in chunk:
+                    title = topic.get('title', topic.get('topic', '')).lower()
+                    score = 0
+                    
+                    # Check for key concept matches
+                    for concept in key_concepts:
+                        if concept.lower() in title:
+                            score += 5
+                    
+                    # Domain-specific keywords
+                    if primary_domain in self.learning_domains:
+                        domain_info = self.learning_domains[primary_domain]
+                        for keyword in domain_info['keywords']:
+                            if keyword in title:
+                                score += 3
+                    
+                    # Add topics with decent scores
+                    if score >= 5:
+                        topic['relevance_score'] = score
+                        all_relevant_topics.append(topic)
 
         print(f"✅ Selected {len(all_relevant_topics)} relevant topics")
         return all_relevant_topics
@@ -600,6 +649,10 @@ CRITICAL REQUIREMENTS:
         curriculum = self.create_enhanced_curriculum(relevant_topics, query_analysis)
         
         if curriculum:
+            # Beautify topic titles for better presentation
+            print("\n✨ Beautifying topic titles...")
+            curriculum = beautify_curriculum_topics(curriculum)
+            
             # Save curriculum
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") 
             filename = f"output/enhanced_curriculum_{timestamp}.json"

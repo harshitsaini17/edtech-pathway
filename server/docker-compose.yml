@@ -1,22 +1,129 @@
 version: '3.8'
 
 services:
-  pathway-dev:
-    build: .
-    container_name: pathway-server
+  # MongoDB - Student profiles and data
+  mongodb:
+    image: mongo:7.0
+    container_name: learnpro-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=learnpro123
+      - MONGO_INITDB_DATABASE=learnpro
     volumes:
-      # Mount your code for live editing
-      - .:/app
-      # Optional: Mount a volume for data persistence
-      - pathway-data:/app/data
+      - mongodb-data:/data/db
+    networks:
+      - learnpro-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching layer
+  redis:
+    image: redis:7.2-alpine
+    container_name: learnpro-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - learnpro-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ChromaDB - Vector database
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: learnpro-chromadb
+    ports:
+      - "8001:8000"
+    environment:
+      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
+      - CHROMA_SERVER_AUTH_CREDENTIALS=test-token
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.basic_authn.BasicAuthenticationServerProvider
+    volumes:
+      - chromadb-data:/chroma/chroma
+    networks:
+      - learnpro-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI - Main API server
+  api:
+    build: .
+    container_name: learnpro-api
     ports:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    # Keep container running for development
-    command: tail -f /dev/null
-    # or use: command: python -c "import time; time.sleep(999999999)"
+      - MONGODB_URL=mongodb://admin:learnpro123@mongodb:27017/learnpro?authSource=admin
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+    volumes:
+      - .:/app
+      - ./output:/app/output
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    networks:
+      - learnpro-network
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Streamlit - Monitoring Dashboard
+  dashboard:
+    build: .
+    container_name: learnpro-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - MONGODB_URL=mongodb://admin:learnpro123@mongodb:27017/learnpro?authSource=admin
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - api
+      - mongodb
+      - redis
+    networks:
+      - learnpro-network
+    command: streamlit run monitoring/dashboard.py --server.port=8501 --server.address=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  learnpro-network:
+    driver: bridge
 
 volumes:
-  pathway-data:
+  mongodb-data:
+  redis-data:
+  chromadb-data:
+

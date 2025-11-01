@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EdTech Pathway - Theory Content Viewer</title>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root {
+    --primary-blue: #0c3c60;
+    --accent-blue: #1e90ff;
+    --light-bg: #f4f7f8;
+    --formula-bg: #f0f7ff;
+    --example-bg: #f9f9f9;
+    --warning-bg: #fff4e5;
+    --warning-color: #ffa726;
+    --success-bg: #e8f5e9;
+    --success-color: #4caf50;
+  }
+
+  * { box-sizing: border-box; }
+  
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0; padding: 0;
+    background: var(--light-bg); color: #333; line-height: 1.6;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, var(--primary-blue), var(--accent-blue));
+    color: white; padding: 20px 30px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  .header h1 {
+    margin: 0; font-size: 28px; color: white;
+    border-bottom: none; padding-bottom: 0;
+  }
+  .header p {
+    margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;
+  }
+
+  /* Main container */
+  .container {
+    max-width: 1200px; margin: 0 auto; padding: 20px;
+    display: grid; grid-template-columns: 300px 1fr;
+    gap: 20px; min-height: calc(100vh - 100px);
+  }
+
+  /* Sidebar - Topic List */
+  .sidebar {
+    background: white; padding: 20px; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    max-height: calc(100vh - 140px);
+    overflow-y: auto; position: sticky; top: 20px;
+  }
+  .sidebar h2 {
+    color: var(--primary-blue); margin-top: 0; font-size: 18px;
+    border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px;
+  }
+  .topic-list {
+    list-style: none; padding: 0; margin: 0;
+  }
+  .topic-item {
+    padding: 12px 15px; margin: 5px 0; cursor: pointer;
+    border-radius: 5px; transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    font-size: 14px;
+  }
+  .topic-item:hover {
+    background: var(--light-bg); border-left-color: var(--accent-blue);
+  }
+  .topic-item.active {
+    background: var(--accent-blue); color: white;
+    border-left-color: var(--primary-blue);
+  }
+  .topic-emoji {
+    margin-right: 8px; font-size: 16px;
+  }
+
+  /* Content area */
+  .content-area {
+    background: white; padding: 40px; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    min-height: 500px;
+  }
+
+  /* Input section (for manual input) */
+  .input-section {
+    margin-bottom: 20px; padding: 20px;
+    border: 2px dashed #ddd; border-radius: 8px;
+    background: #fafafa;
+  }
+  .input-section.collapsed {
+    padding: 10px 20px;
+  }
+  .toggle-input {
+    background: var(--accent-blue); color: white;
+    border: none; padding: 8px 15px; border-radius: 5px;
+    font-size: 14px; cursor: pointer; margin-bottom: 10px;
+    transition: background 0.3s ease;
+  }
+  .toggle-input:hover {
+    background: #0066cc;
+  }
+  #markdownInput {
+    width: 100%; height: 200px; padding: 15px;
+    font-family: 'Courier New', Monaco, monospace;
+    font-size: 13px; border: 2px solid #ddd;
+    border-radius: 5px; resize: vertical; display: none;
+  }
+  #markdownInput.visible {
+    display: block;
+  }
+  #renderButton {
+    background: var(--success-color); color: white;
+    border: none; padding: 10px 20px; border-radius: 5px;
+    font-size: 14px; cursor: pointer; margin-top: 10px;
+    transition: background 0.3s ease; display: none;
+  }
+  #renderButton.visible {
+    display: inline-block;
+  }
+  #renderButton:hover {
+    background: #45a049;
+  }
+
+  /* Output styling */
+  #output {
+    min-height: 200px;
+  }
+  .loading {
+    text-align: center; padding: 40px; color: #999;
+  }
+  .error {
+    background: #ffebee; color: #c62828; padding: 20px;
+    border-radius: 5px; border-left: 5px solid #c62828;
+  }
+
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-blue); margin-top: 1.5em; margin-bottom: 0.5em;
+    font-weight: 600; line-height: 1.3;
+  }
+  h1 { 
+    border-bottom: 3px solid var(--accent-blue); 
+    padding-bottom: 10px; font-size: 32px;
+  }
+  h2 { 
+    border-bottom: 2px solid #ddd; 
+    padding-bottom: 8px; font-size: 26px;
+  }
+  h3 { font-size: 22px; }
+  h4 { font-size: 18px; }
+
+  /* Lists */
+  ul, ol { padding-left: 30px; margin: 15px 0; }
+  li { margin: 10px 0; line-height: 1.8; }
+
+  /* Tables */
+  .markdown-table {
+    width: 100%; border-collapse: collapse; margin: 25px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px;
+    overflow: hidden; font-size: 14px;
+  }
+  .markdown-table th {
+    background: var(--primary-blue); color: white;
+    padding: 15px; text-align: left; font-weight: 600;
+  }
+  .markdown-table td {
+    padding: 12px 15px; border-bottom: 1px solid #eee;
+  }
+  .markdown-table tr:hover {
+    background: #f8f9fa;
+  }
+  .markdown-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Formulas */
+  .formula-display {
+    background: var(--formula-bg); 
+    border-left: 5px solid var(--accent-blue);
+    padding: 25px; margin: 25px 0; border-radius: 0 8px 8px 0;
+    font-size: 1.3em; text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    overflow-x: auto;
+  }
+  .formula-inline {
+    background: var(--formula-bg); padding: 4px 8px;
+    border-radius: 4px; font-weight: 500;
+  }
+
+  /* Code blocks */
+  pre {
+    background: #f8f8f8; padding: 20px; border-radius: 8px;
+    overflow-x: auto; border: 1px solid #e1e1e1;
+    font-family: 'Courier New', Monaco, monospace;
+    font-size: 13px; line-height: 1.6;
+  }
+  code {
+    background: #f1f1f1; padding: 3px 6px; border-radius: 3px;
+    font-family: 'Courier New', Monaco, monospace; 
+    color: #d63384; font-size: 0.9em;
+  }
+  pre code {
+    background: transparent; padding: 0; color: inherit;
+  }
+
+  /* Special sections */
+  .example-section {
+    background: var(--example-bg); 
+    border-left: 5px solid #28a745;
+    padding: 20px 25px; margin: 25px 0; 
+    border-radius: 0 8px 8px 0;
+  }
+  .example-section h3 {
+    margin-top: 0; color: #28a745;
+  }
+  
+  .warning-section {
+    background: var(--warning-bg); 
+    border-left: 5px solid var(--warning-color);
+    padding: 20px 25px; margin: 25px 0; 
+    border-radius: 0 8px 8px 0;
+  }
+
+  .info-section {
+    background: #e3f2fd; 
+    border-left: 5px solid #2196f3;
+    padding: 20px 25px; margin: 25px 0; 
+    border-radius: 0 8px 8px 0;
+  }
+
+  blockquote {
+    border-left: 4px solid var(--accent-blue); 
+    padding: 15px 20px 15px 35px;
+    margin: 25px 0; font-style: italic; color: #555;
+    background: #f0f4ff; border-radius: 0 8px 8px 0;
+  }
+
+  /* Paragraphs */
+  p {
+    margin: 15px 0; line-height: 1.8;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .container {
+      grid-template-columns: 1fr;
+    }
+    .sidebar {
+      max-height: 300px; position: relative;
+    }
+  }
+  @media (max-width: 768px) {
+    .container { padding: 10px; }
+    .content-area { padding: 20px; }
+    .header { padding: 15px 20px; }
+    .header h1 { font-size: 22px; }
+    .markdown-table { font-size: 12px; }
+    .markdown-table th, .markdown-table td { padding: 8px 10px; }
+  }
+
+  /* Scrollbar styling */
+  .sidebar::-webkit-scrollbar {
+    width: 8px;
+  }
+  .sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1; border-radius: 4px;
+  }
+  .sidebar::-webkit-scrollbar-thumb {
+    background: #888; border-radius: 4px;
+  }
+  .sidebar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* File upload button */
+  .file-controls {
+    margin-bottom: 15px;
+  }
+  #fileInput {
+    display: none;
+  }
+  .file-button {
+    background: var(--primary-blue); color: white;
+    border: none; padding: 10px 20px; border-radius: 5px;
+    font-size: 14px; cursor: pointer;
+    transition: background 0.3s ease;
+    margin-right: 10px;
+  }
+  .file-button:hover {
+    background: #0a2d47;
+  }
+  .file-name {
+    color: #666; font-size: 13px; font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📚 EdTech Pathway - Theory Content Viewer</h1>
+  <p>Interactive markdown viewer with LaTeX support for learning materials</p>
+</div>
+
+<div class="container">
+  <!-- Sidebar with topics -->
+  <div class="sidebar">
+    <h2>📖 Topics</h2>
+    <ul class="topic-list" id="topicList">
+      <li class="topic-item" data-topic="sample">
+        <span class="topic-emoji">⭐</span>
+        Sample Content
+      </li>
+      <li class="topic-item" data-topic="expectation">
+        <span class="topic-emoji">🎯</span>
+        Understanding Expected Value
+      </li>
+      <li class="topic-item" data-topic="variance">
+        <span class="topic-emoji">🧮</span>
+        Variance and Standard Deviation
+      </li>
+      <li class="topic-item" data-topic="probability">
+        <span class="topic-emoji">🎲</span>
+        Probability Foundations
+      </li>
+    </ul>
+    
+    <div class="file-controls">
+      <input type="file" id="fileInput" accept=".md,.txt" />
+      <button class="file-button" onclick="document.getElementById('fileInput').click()">
+        📁 Load File
+      </button>
+      <div class="file-name" id="fileName"></div>
+    </div>
+  </div>
+
+  <!-- Main content area -->
+  <div class="content-area">
+    <!-- Manual input section (collapsible) -->
+    <div class="input-section collapsed" id="inputSection">
+      <button class="toggle-input" id="toggleButton">✏️ Paste Markdown Content</button>
+      
+      <textarea id="markdownInput" placeholder="Paste your markdown content here...
+
+# Sample Theory Content
+
+## Introduction
+Welcome to this learning module!
+
+### Key Formula
+\[ E[X] = \sum_{i=1}^n x_i \cdot p(x_i) \]
+
+| Concept | Description |
+|---------|-------------|
+| Mean | Average value |
+| Variance | Measure of spread |
+
+**Remember**: Always verify your data!
+
+> Important insight goes here...
+
+### Example
+For values: 2, 4, 6
+Mean = \( \frac{2+4+6}{3} = 4 \)"></textarea>
+      
+      <button id="renderButton">🚀 Render Content</button>
+    </div>
+
+    <!-- Output area -->
+    <div id="output">
+      <div class="loading">
+        <p><em>👋 Select a topic from the sidebar or paste content above...</em></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+class MarkdownProcessor {
+  constructor() {
+    this.formulaCounter = 0;
+  }
+
+  // Main processing function
+  process(markdown) {
+    let html = markdown;
+    
+    // Process in order: formulas first (to protect them), then other elements
+    html = this.processDisplayFormulas(html);
+    html = this.processInlineFormulas(html);
+    html = this.processTables(html);
+    html = this.processHeaders(html);
+    html = this.processLists(html);
+    html = this.processBlockquotes(html);
+    html = this.processCodeBlocks(html);
+    html = this.processInlineCode(html);
+    html = this.processBold(html);
+    html = this.processItalic(html);
+    html = this.processSpecialSections(html);
+    html = this.processLinks(html);
+    html = this.processParagraphs(html);
+    
+    return html;
+  }
+
+  // Process display formulas \[ ... \] or $$ ... $$
+  processDisplayFormulas(text) {
+    // Handle \[ ... \]
+    text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
+      return `<div class="formula-display">\\[${formula}\\]</div>`;
+    });
+    // Handle $$ ... $$
+    text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+      return `<div class="formula-display">$$${formula}$$</div>`;
+    });
+    return text;
+  }
+
+  // Process inline formulas \( ... \) or $ ... $
+  processInlineFormulas(text) {
+    // Handle \( ... \)
+    text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
+      return `<span class="formula-inline">\\(${formula}\\)</span>`;
+    });
+    // Handle $ ... $ (but not $$)
+    text = text.replace(/\$([^\$]+)\$/g, (match, formula) => {
+      return `<span class="formula-inline">$${formula}$</span>`;
+    });
+    return text;
+  }
+
+  // Process markdown tables
+  processTables(text) {
+    const tableRegex = /\|(.+)\|\s*\n\|[-:\s\|]+\|\s*\n((?:\|.+\|\s*\n?)*)/gm;
+    
+    return text.replace(tableRegex, (match, header, rows) => {
+      const headerCells = header.split('|')
+        .map(cell => cell.trim())
+        .filter(cell => cell)
+        .map(cell => `<th>${this.processInlineFormatting(cell)}</th>`)
+        .join('');
+      
+      const rowHtml = rows.trim().split('\n')
+        .filter(row => row.trim())
+        .map(row => {
+          const cells = row.split('|')
+            .map(cell => cell.trim())
+            .filter(cell => cell)
+            .map(cell => `<td>${this.processInlineFormatting(cell)}</td>`)
+            .join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('');
+      
+      return `<table class="markdown-table">
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${rowHtml}</tbody>
+      </table>`;
+    });
+  }
+
+  // Process inline formatting (for table cells, etc.)
+  processInlineFormatting(text) {
+    text = text.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return text;
+  }
+
+  // Process headers
+  processHeaders(text) {
+    return text
+      .replace(/^##### (.+)$/gm, '<h5>$1</h5>')
+      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  }
+
+  // Process lists
+  processLists(text) {
+    // Process nested lists
+    const lines = text.split('\n');
+    let result = [];
+    let inList = false;
+    let listType = null;
+    
+    for (let line of lines) {
+      if (/^[-*+] /.test(line)) {
+        if (!inList) {
+          result.push('<ul>');
+          inList = true;
+          listType = 'ul';
+        }
+        result.push('<li>' + line.replace(/^[-*+] /, '') + '</li>');
+      } else if (/^\d+\. /.test(line)) {
+        if (!inList) {
+          result.push('<ol>');
+          inList = true;
+          listType = 'ol';
+        }
+        result.push('<li>' + line.replace(/^\d+\. /, '') + '</li>');
+      } else {
+        if (inList) {
+          result.push(listType === 'ul' ? '</ul>' : '</ol>');
+          inList = false;
+          listType = null;
+        }
+        result.push(line);
+      }
+    }
+    
+    if (inList) {
+      result.push(listType === 'ul' ? '</ul>' : '</ol>');
+    }
+    
+    return result.join('\n');
+  }
+
+  // Process blockquotes
+  processBlockquotes(text) {
+    return text.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+  }
+
+  // Process code blocks
+  processCodeBlocks(text) {
+    // Handle ``` code blocks
+    return text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      return `<pre><code class="language-${lang}">${this.escapeHtml(code.trim())}</code></pre>`;
+    });
+  }
+
+  // Process inline code
+  processInlineCode(text) {
+    return text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  // Process bold text
+  processBold(text) {
+    return text.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+  }
+
+  // Process italic text
+  processItalic(text) {
+    return text.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+  }
+
+  // Process links
+  processLinks(text) {
+    return text.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  }
+
+  // Process special sections
+  processSpecialSections(text) {
+    // Example sections
+    text = text.replace(/^### Example(.*)$/gm, '<div class="example-section"><h3>📝 Example$1</h3>');
+    text = text.replace(/^### 📝 Example/gm, '<div class="example-section"><h3>📝 Example');
+    
+    // Warning sections
+    text = text.replace(/^⚠️(.*)$/gm, '<div class="warning-section"><strong>⚠️$1</strong></div>');
+    
+    // Info sections
+    text = text.replace(/^ℹ️(.*)$/gm, '<div class="info-section"><strong>ℹ️$1</strong></div>');
+    
+    // Close divs if opened
+    text = text.replace(/(<div class="example-section">[\s\S]*?)(?=<h[1-6]|<div class=|$)/g, '$1</div>');
+    
+    return text;
+  }
+
+  // Process paragraphs
+  processParagraphs(text) {
+    const lines = text.split('\n');
+    let result = [];
+    let paragraph = [];
+    
+    for (let line of lines) {
+      line = line.trim();
+      
+      // Skip empty lines
+      if (!line) {
+        if (paragraph.length > 0) {
+          const p = paragraph.join(' ');
+          if (!p.startsWith('<')) {
+            result.push(`<p>${p}</p>`);
+          } else {
+            result.push(p);
+          }
+          paragraph = [];
+        }
+        continue;
+      }
+      
+      // If line starts with HTML tag, treat as block element
+      if (line.startsWith('<')) {
+        if (paragraph.length > 0) {
+          result.push(`<p>${paragraph.join(' ')}</p>`);
+          paragraph = [];
+        }
+        result.push(line);
+      } else {
+        paragraph.push(line);
+      }
+    }
+    
+    // Handle remaining paragraph
+    if (paragraph.length > 0) {
+      const p = paragraph.join(' ');
+      if (!p.startsWith('<')) {
+        result.push(`<p>${p}</p>`);
+      } else {
+        result.push(p);
+      }
+    }
+    
+    return result.join('\n');
+  }
+
+  // Escape HTML
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+}
+
+// Sample content for different topics
+const sampleContent = {
+  sample: `# Sample Learning Content
+
+## Introduction
+This is a sample theory document demonstrating the markdown viewer capabilities.
+
+### Key Concepts
+- **Concept 1**: First important idea
+- **Concept 2**: Second important idea
+- **Concept 3**: Third important idea
+
+### Mathematical Formula
+The expected value is calculated as:
+\\[ E[X] = \\sum_{i=1}^n x_i \\cdot p(x_i) \\]
+
+Where \\( x_i \\) represents each value and \\( p(x_i) \\) is its probability.
+
+| Symbol | Meaning |
+|--------|---------|
+| E[X] | Expected value |
+| x_i | Individual value |
+| p(x_i) | Probability of x_i |
+
+**Why is this important?** Expected value gives us the long-run average outcome.
+
+> **Note**: This is a fundamental concept in probability theory.
+
+### Example Calculation
+For a fair die roll:
+\\[ E[X] = 1 \\cdot \\frac{1}{6} + 2 \\cdot \\frac{1}{6} + ... + 6 \\cdot \\frac{1}{6} = 3.5 \\]`,
+
+  expectation: `# Understanding Expected Value
+
+## What is Expected Value?
+Expected value (or expectation) is a fundamental concept in probability that represents the average outcome of a random variable over many trials.
+
+### Mathematical Definition
+For a discrete random variable X:
+\\[ E[X] = \\sum_{i=1}^n x_i \\cdot P(X = x_i) \\]
+
+For a continuous random variable:
+\\[ E[X] = \\int_{-\\infty}^{\\infty} x \\cdot f(x) dx \\]
+
+### Properties of Expected Value
+1. **Linearity**: \\( E[aX + b] = aE[X] + b \\)
+2. **Sum Rule**: \\( E[X + Y] = E[X] + E[Y] \\)
+3. **Product (Independent)**: \\( E[XY] = E[X]E[Y] \\) (if X, Y independent)
+
+| Property | Formula | Condition |
+|----------|---------|-----------|
+| Linearity | E[aX + b] = aE[X] + b | Always |
+| Additivity | E[X + Y] = E[X] + E[Y] | Always |
+| Multiplicativity | E[XY] = E[X]E[Y] | Independence |
+
+### Example 1: Coin Flip
+For a fair coin (Heads = 1, Tails = 0):
+\\[ E[X] = 1 \\cdot \\frac{1}{2} + 0 \\cdot \\frac{1}{2} = 0.5 \\]
+
+### Example 2: Die Roll
+For a fair six-sided die:
+\\[ E[X] = \\frac{1 + 2 + 3 + 4 + 5 + 6}{6} = \\frac{21}{6} = 3.5 \\]
+
+> **Insight**: The expected value doesn't have to be a possible outcome! A die can't show 3.5.
+
+### 📝 Example: Lottery Ticket
+Suppose a lottery ticket costs $2. The prizes are:
+- $100 with probability 0.01
+- $10 with probability 0.05
+- $0 with probability 0.94
+
+Expected value:
+\\[ E[X] = 100(0.01) + 10(0.05) + 0(0.94) = \\$1.50 \\]
+
+**Conclusion**: On average, you lose $0.50 per ticket (since it costs $2).
+
+⚠️ **Warning**: Expected value tells us the long-run average, not what happens in a single trial!`,
+
+  variance: `# Variance and Standard Deviation
+
+## Understanding Variance
+Variance measures how spread out values are from the mean. It quantifies the variability in a dataset.
+
+### Mathematical Definition
+For a random variable X with mean \\( \\mu = E[X] \\):
+\\[ Var(X) = E[(X - \\mu)^2] = E[X^2] - (E[X])^2 \\]
+
+### Standard Deviation
+Standard deviation is the square root of variance:
+\\[ \\sigma = \\sqrt{Var(X)} \\]
+
+**Why use standard deviation?** It has the same units as the original data!
+
+| Measure | Formula | Units |
+|---------|---------|-------|
+| Variance | \\( E[(X-\\mu)^2] \\) | Squared units |
+| Std Dev | \\( \\sqrt{Var(X)} \\) | Original units |
+
+### Properties of Variance
+1. **Non-negative**: \\( Var(X) \\geq 0 \\)
+2. **Constant**: \\( Var(c) = 0 \\)
+3. **Scaling**: \\( Var(aX) = a^2 Var(X) \\)
+4. **Sum (Independent)**: \\( Var(X + Y) = Var(X) + Var(Y) \\)
+
+### 📝 Example: Test Scores
+Students' test scores: 70, 75, 80, 85, 90
+
+**Step 1**: Calculate mean
+\\[ \\mu = \\frac{70 + 75 + 80 + 85 + 90}{5} = 80 \\]
+
+**Step 2**: Calculate squared deviations
+\\[ (70-80)^2 + (75-80)^2 + (80-80)^2 + (85-80)^2 + (90-80)^2 \\]
+\\[ = 100 + 25 + 0 + 25 + 100 = 250 \\]
+
+**Step 3**: Calculate variance
+\\[ Var(X) = \\frac{250}{5} = 50 \\]
+
+**Step 4**: Calculate standard deviation
+\\[ \\sigma = \\sqrt{50} \\approx 7.07 \\]
+
+> **Interpretation**: On average, scores deviate from the mean by about 7 points.
+
+### Variance of Common Distributions
+
+| Distribution | Variance Formula |
+|--------------|------------------|
+| Uniform[a,b] | \\( \\frac{(b-a)^2}{12} \\) |
+| Bernoulli(p) | \\( p(1-p) \\) |
+| Binomial(n,p) | \\( np(1-p) \\) |
+| Poisson(λ) | \\( \\lambda \\) |
+| Normal(μ,σ²) | \\( \\sigma^2 \\) |
+
+⚠️ **Common Mistake**: \\( Var(X + Y) \\neq Var(X) + Var(Y) \\) unless X and Y are independent!`,
+
+  probability: `# Probability Foundations
+
+## Basic Probability Theory
+Probability is the mathematical framework for quantifying uncertainty and random phenomena.
+
+### Probability Axioms
+For any event A in sample space Ω:
+
+1. **Non-negativity**: \\( P(A) \\geq 0 \\)
+2. **Normalization**: \\( P(\\Omega) = 1 \\)
+3. **Additivity**: If A and B are disjoint, \\( P(A \\cup B) = P(A) + P(B) \\)
+
+### Key Definitions
+
+| Term | Definition |
+|------|------------|
+| Sample Space | Set of all possible outcomes (Ω) |
+| Event | Subset of sample space |
+| Probability | Measure of likelihood, between 0 and 1 |
+| Complement | \\( P(A^c) = 1 - P(A) \\) |
+
+### Conditional Probability
+The probability of A given B:
+\\[ P(A|B) = \\frac{P(A \\cap B)}{P(B)} \\]
+
+### Bayes' Theorem
+One of the most important formulas in probability:
+\\[ P(A|B) = \\frac{P(B|A) \\cdot P(A)}{P(B)} \\]
+
+### 📝 Example: Medical Test
+A disease affects 1% of population. A test is 95% accurate.
+- Sensitivity: P(Positive|Disease) = 0.95
+- Specificity: P(Negative|No Disease) = 0.95
+
+**Question**: If someone tests positive, what's the probability they have the disease?
+
+**Solution using Bayes' Theorem**:
+\\[ P(Disease|Positive) = \\frac{P(Positive|Disease) \\cdot P(Disease)}{P(Positive)} \\]
+
+\\[ P(Positive) = P(Pos|Dis) \\cdot P(Dis) + P(Pos|No Dis) \\cdot P(No Dis) \\]
+\\[ = 0.95 \\times 0.01 + 0.05 \\times 0.99 = 0.059 \\]
+
+\\[ P(Disease|Positive) = \\frac{0.95 \\times 0.01}{0.059} \\approx 0.161 \\]
+
+**Result**: Only 16.1% chance of having the disease despite positive test!
+
+> **Insight**: This counterintuitive result shows why base rates matter.
+
+### Independence
+Events A and B are independent if:
+\\[ P(A \\cap B) = P(A) \\cdot P(B) \\]
+
+Equivalently: \\( P(A|B) = P(A) \\)
+
+⚠️ **Warning**: Independence is different from mutual exclusivity!
+- Independent: Knowing one doesn't affect the other
+- Mutually exclusive: Events cannot both occur
+
+### Laws of Probability
+1. **Union**: \\( P(A \\cup B) = P(A) + P(B) - P(A \\cap B) \\)
+2. **Complement**: \\( P(A^c) = 1 - P(A) \\)
+3. **De Morgan's**: \\( (A \\cup B)^c = A^c \\cap B^c \\)`
+};
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+  const processor = new MarkdownProcessor();
+  const input = document.getElementById('markdownInput');
+  const output = document.getElementById('output');
+  const renderButton = document.getElementById('renderButton');
+  const toggleButton = document.getElementById('toggleButton');
+  const inputSection = document.getElementById('inputSection');
+  const topicList = document.getElementById('topicList');
+  const fileInput = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+
+  // Toggle input section
+  toggleButton.addEventListener('click', function() {
+    inputSection.classList.toggle('collapsed');
+    input.classList.toggle('visible');
+    renderButton.classList.toggle('visible');
+    
+    if (inputSection.classList.contains('collapsed')) {
+      toggleButton.textContent = '✏️ Paste Markdown Content';
+    } else {
+      toggleButton.textContent = '❌ Hide Input Area';
+    }
+  });
+
+  // Render button click
+  renderButton.addEventListener('click', function() {
+    renderMarkdown(input.value);
+  });
+
+  // Render markdown function
+  function renderMarkdown(markdown) {
+    if (!markdown.trim()) {
+      output.innerHTML = '<div class="error">Please enter some content to render...</div>';
+      return;
+    }
+
+    // Process markdown to HTML
+    const html = processor.process(markdown);
+    output.innerHTML = html;
+
+    // Re-render MathJax for new content
+    if (window.MathJax) {
+      MathJax.typesetPromise([output]).catch(function (err) {
+        console.error('MathJax rendering error:', err);
+      });
+    }
+
+    // Scroll to top of output
+    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Topic list click
+  topicList.addEventListener('click', function(e) {
+    const topicItem = e.target.closest('.topic-item');
+    if (!topicItem) return;
+
+    // Update active state
+    document.querySelectorAll('.topic-item').forEach(item => {
+      item.classList.remove('active');
+    });
+    topicItem.classList.add('active');
+
+    // Load content
+    const topic = topicItem.dataset.topic;
+    if (sampleContent[topic]) {
+      renderMarkdown(sampleContent[topic]);
+    }
+  });
+
+  // File input change
+  fileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    fileName.textContent = `📄 ${file.name}`;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const content = event.target.result;
+      input.value = content;
+      renderMarkdown(content);
+      
+      // Expand input section
+      if (inputSection.classList.contains('collapsed')) {
+        toggleButton.click();
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Allow Ctrl+Enter to render
+  input.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') {
+      renderButton.click();
+    }
+  });
+
+  // Load first topic by default
+  setTimeout(() => {
+    document.querySelector('.topic-item[data-topic="sample"]').click();
+  }, 100);
+});
+</script>
+
+</body>
+</html>
