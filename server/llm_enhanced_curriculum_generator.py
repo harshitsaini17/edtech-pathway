@@ -298,8 +298,31 @@ AVOID general statistics introductions unless specifically needed.
                     
             except Exception as e:
                 print(f"⚠️ LLM filtering failed for chunk, using fallback: {e}")
-                fallback_topics = self._fallback_topic_filtering_chunk(chunk, query_analysis)
-                all_relevant_topics.extend(fallback_topics)
+                # Apply simple keyword-based filtering to this chunk
+                primary_domain = query_analysis.get('primary_domain', 'general')
+                query_title = query_analysis.get('refined_title', '').lower()
+                key_concepts = query_analysis.get('key_concepts', [])
+                
+                for topic in chunk:
+                    title = topic.get('title', topic.get('topic', '')).lower()
+                    score = 0
+                    
+                    # Check for key concept matches
+                    for concept in key_concepts:
+                        if concept.lower() in title:
+                            score += 5
+                    
+                    # Domain-specific keywords
+                    if primary_domain in self.learning_domains:
+                        domain_info = self.learning_domains[primary_domain]
+                        for keyword in domain_info['keywords']:
+                            if keyword in title:
+                                score += 3
+                    
+                    # Add topics with decent scores
+                    if score >= 5:
+                        topic['relevance_score'] = score
+                        all_relevant_topics.append(topic)
 
         print(f"✅ Selected {len(all_relevant_topics)} relevant topics")
         return all_relevant_topics

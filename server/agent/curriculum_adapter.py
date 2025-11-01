@@ -6,7 +6,7 @@ Handles topic reranking, remedial content injection, and difficulty adjustment.
 """
 
 from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 import json
 import os
@@ -204,12 +204,19 @@ class CurriculumAdapter:
                 n_results=3
             )
             
+            # Extract topic information from results list
+            related_topics = []
+            if results:
+                for r in results[:2]:
+                    if isinstance(r, dict):
+                        related_topics.append(r.get('topic', str(r)))
+            
             # Generate remedial content using LLM
             prompt = f"""
 Generate remedial learning content for a student struggling with: {topic}
 
 Context from related materials:
-{json.dumps(results.get('documents', [[]])[0][:2], indent=2)}
+{json.dumps(related_topics, indent=2)}
 
 Create:
 1. A simplified explanation (2-3 paragraphs)
@@ -221,7 +228,7 @@ Format as JSON with keys: explanation, prerequisites, practice_problems, tips
 """
             
             try:
-                response = self.llm.generate_text(prompt)
+                response = self.llm.generate_response(prompt)
                 
                 # Try to parse as JSON
                 try:
@@ -443,56 +450,155 @@ Format as JSON with keys: explanation, prerequisites, practice_problems, tips
         
         Args:
             decision: Adaptation decision
-            curriculum: Current curriculum
+            curriculum: Current curriculum (with modules structure)
             
         Returns:
             Updated curriculum
         """
-        updated_curriculum = curriculum.copy()
+        import copy
+        updated_curriculum = copy.deepcopy(curriculum)
+        
+        # Debug: Log original topics structure
+        if updated_curriculum.get("modules"):
+            for idx, module in enumerate(updated_curriculum["modules"]):
+                topics = module.get("topics", [])
+                print(f"📋 Module {idx} has {len(topics)} topics before adaptation")
+                for t_idx, topic in enumerate(topics[:3]):  # Show first 3
+                    if isinstance(topic, dict):
+                        title = topic.get('topic_title') or topic.get('topic') or topic.get('title', 'NO_TITLE')
+                        print(f"   Topic {t_idx}: {title[:50]}...")
+                    else:
+                        print(f"   Topic {t_idx}: {str(topic)[:50]}...")
+        
+        # Find the target module
+        target_module_idx = None
+        for idx, module in enumerate(updated_curriculum.get("modules", [])):
+            if decision.module_name in module.get("title", ""):
+                target_module_idx = idx
+                break
+        
+        if target_module_idx is None and updated_curriculum.get("modules"):
+            target_module_idx = 0  # Default to first module
         
         for action in decision.actions:
             action_type = action["action"]
             
             if action_type == "inject_remedial":
-                # Add remedial items to beginning of topics
-                if "remedial_content" not in updated_curriculum:
-                    updated_curriculum["remedial_content"] = []
-                
-                updated_curriculum["remedial_content"].extend(action["items"])
+                # Add remedial content to the target module
+                if target_module_idx is not None:
+                    module = updated_curriculum["modules"][target_module_idx]
+                    
+                    # Create remedial topics from items
+                    remedial_topics = []
+                    for item in action.get("items", []):
+                        # Extract topic name from the remedial item dictionary
+                        if isinstance(item, dict):
+                            topic_name = item.get("topic", "Unknown Topic")
+                            remedial_topic = {
+                                "title": f"📚 Review: {topic_name}",
+                                "topic": f"📚 Review: {topic_name}",
+                                "topic_title": f"📚 Review: {topic_name}",
+                                "type": "remedial",
+                                "content": item.get("content", {}),
+                                "description": f"Foundational review of {topic_name}",
+                                "estimated_duration": item.get("estimated_time_minutes", 15),
+                                "difficulty": item.get("difficulty", "foundational")
+                            }
+                        else:
+                            # Fallback for string items
+                            remedial_topic = {
+                                "title": f"📚 Review: {item}",
+                                "topic": f"📚 Review: {item}",
+                                "topic_title": f"📚 Review: {item}",
+                                "type": "remedial",
+                                "description": f"Foundational review of {item}",
+                                "estimated_duration": "30 minutes"
+                            }
+                        remedial_topics.append(remedial_topic)
+                    
+                    # Insert at beginning of module topics
+                    if "topics" in module:
+                        module["topics"] = remedial_topics + module["topics"]
+                    else:
+                        module["topics"] = remedial_topics
+                    
+                    print(f"✅ Injected {len(remedial_topics)} remedial topics")
             
             elif action_type == "rerank_topics":
-                # Reorder topics based on rankings
-                rankings = action["rankings"]
-                current_topics = updated_curriculum.get("topics", [])
-                
-                # Create new order
-                sorted_rankings = sorted(rankings, key=lambda x: x["new_position"])
-                new_order = [r["topic"] for r in sorted_rankings]
-                
-                updated_curriculum["topics"] = new_order
+                # Reorder topics within the target module
+                if target_module_idx is not None:
+                    rankings = action.get("rankings", [])
+                    module = updated_curriculum["modules"][target_module_idx]
+                    current_topics = module.get("topics", [])
+                    
+                    if rankings and current_topics:
+                        # Create new order based on rankings
+                        sorted_rankings = sorted(rankings, key=lambda x: x.get("new_position", 999))
+                        new_order = []
+                        
+                        for rank in sorted_rankings:
+                            topic_title = rank.get("topic")
+                            # Find matching topic
+                            for topic in current_topics:
+                                if isinstance(topic, dict) and topic.get("title") == topic_title:
+                                    new_order.append(topic)
+                                    break
+                                elif isinstance(topic, str) and topic == topic_title:
+                                    new_order.append(topic)
+                                    break
+                        
+                        # Add any topics not in rankings
+                        for topic in current_topics:
+                            topic_title = topic.get("title") if isinstance(topic, dict) else topic
+                            if topic_title not in [r.get("topic") for r in sorted_rankings]:
+                                new_order.append(topic)
+                        
+                        module["topics"] = new_order
+                        print(f"✅ Reranked {len(new_order)} topics")
             
             elif action_type == "adjust_difficulty":
-                # Update difficulty level
-                updated_curriculum["difficulty"] = action["to"]
+                # Update difficulty level for the target module
+                if target_module_idx is not None:
+                    updated_curriculum["modules"][target_module_idx]["difficulty"] = action.get("to", "medium")
+                    print(f"✅ Adjusted difficulty to {action.get('to')}")
             
             elif action_type == "skip_ahead":
                 # Mark module as completed and move to next
-                updated_curriculum["status"] = "skipped"
-                updated_curriculum["skip_reason"] = action["reason"]
+                if target_module_idx is not None:
+                    updated_curriculum["modules"][target_module_idx]["status"] = "skipped"
+                    updated_curriculum["modules"][target_module_idx]["skip_reason"] = action.get("reason", "Performance exceeds requirements")
+                    print(f"✅ Marked module as skipped")
         
         # Add metadata
         updated_curriculum["last_adapted"] = datetime.now().isoformat()
         updated_curriculum["adaptation_reason"] = decision.reasoning
         
+        # Debug: Log final topics structure
+        if updated_curriculum.get("modules"):
+            for idx, module in enumerate(updated_curriculum["modules"]):
+                topics = module.get("topics", [])
+                print(f"📋 Module {idx} has {len(topics)} topics AFTER adaptation")
+                for t_idx, topic in enumerate(topics[:5]):  # Show first 5
+                    if isinstance(topic, dict):
+                        title = topic.get('topic_title') or topic.get('topic') or topic.get('title', 'NO_TITLE')
+                        print(f"   Topic {t_idx}: {title[:60]}")
+                    else:
+                        print(f"   Topic {t_idx}: {str(topic)[:60]}")
+        
         print(f"✅ Applied adaptation: {decision.decision_type}")
         
         # Push real-time update to dashboard
-        if self.dashboard_updater and push_adaptation_to_dashboard:
+        if push_adaptation_to_dashboard:
             try:
+                # Convert AdaptationDecision object to dict
+                decision_dict = asdict(decision)
+                # Convert datetime to ISO string for JSON serialization
+                if 'timestamp' in decision_dict and isinstance(decision_dict['timestamp'], datetime):
+                    decision_dict['timestamp'] = decision_dict['timestamp'].isoformat()
+                
                 push_adaptation_to_dashboard(
-                    dashboard_updater=self.dashboard_updater,
                     student_id=decision.student_id,
-                    adaptation_decision=decision,
+                    adaptation_decision=decision_dict,
                     updated_curriculum=updated_curriculum
                 )
                 print(f"📡 Pushed real-time update to dashboard for {decision.student_id}")
