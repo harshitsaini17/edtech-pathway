@@ -10,10 +10,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import os
+import sys
 
 from config.settings import settings
 from db.vector_store import get_vector_store
 from LLM import AdvancedAzureLLM
+
+# Import real-time dashboard updater
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from streaming.realtime_dashboard_updater import RealTimeDashboardUpdater, push_adaptation_to_dashboard
+except ImportError:
+    print("⚠️ Warning: Could not import RealTimeDashboardUpdater")
+    RealTimeDashboardUpdater = None
+    push_adaptation_to_dashboard = None
 
 
 @dataclass
@@ -48,6 +58,17 @@ class CurriculumAdapter:
         self.vector_store = get_vector_store()
         self.llm = AdvancedAzureLLM()
         self.adaptation_history: Dict[str, List[AdaptationDecision]] = {}
+        
+        # Initialize real-time dashboard updater
+        if RealTimeDashboardUpdater:
+            try:
+                self.dashboard_updater = RealTimeDashboardUpdater()
+                print("✅ Real-time dashboard updater initialized")
+            except Exception as e:
+                print(f"⚠️ Could not initialize dashboard updater: {e}")
+                self.dashboard_updater = None
+        else:
+            self.dashboard_updater = None
         
         print("✅ Curriculum Adapter initialized")
     
@@ -464,6 +485,19 @@ Format as JSON with keys: explanation, prerequisites, practice_problems, tips
         updated_curriculum["adaptation_reason"] = decision.reasoning
         
         print(f"✅ Applied adaptation: {decision.decision_type}")
+        
+        # Push real-time update to dashboard
+        if self.dashboard_updater and push_adaptation_to_dashboard:
+            try:
+                push_adaptation_to_dashboard(
+                    dashboard_updater=self.dashboard_updater,
+                    student_id=decision.student_id,
+                    adaptation_decision=decision,
+                    updated_curriculum=updated_curriculum
+                )
+                print(f"📡 Pushed real-time update to dashboard for {decision.student_id}")
+            except Exception as e:
+                print(f"⚠️ Could not push dashboard update: {e}")
         
         return updated_curriculum
     
