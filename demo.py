@@ -3,6 +3,8 @@ LearnPro Demo Script
 ====================
 End-to-end demonstration of the adaptive learning system.
 Shows the complete workflow from PDF ingestion to adaptive curriculum.
+
+Updated: November 6, 2025
 """
 
 import sys
